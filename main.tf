@@ -24,10 +24,10 @@ resource "terraform_data" "main" {
     host     = aws_instance.main.private_ip
   }
 
-  provisioner "file" {
-    source      = "bootstrap.sh"
-    destination = "/tmp/bootstrap.sh"
-  }
+ provisioner "file" {
+  source      = "bootstrap.sh"
+  destination = "/tmp/bootstrap.sh"
+}
 
   provisioner "remote-exec" {
     inline = [
