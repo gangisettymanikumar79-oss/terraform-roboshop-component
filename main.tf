@@ -1,12 +1,12 @@
 resource "aws_instance" "main" {
-  ami                    = local.ami_id
-  instance_type          = "t3.micro"
+  ami           = local.ami_id
+  instance_type = "t3.micro"
   vpc_security_group_ids = [local.sg_id]
-  subnet_id              = local.private_subnet_id
-
+  subnet_id = local.private_subnet_id
+  
   tags = merge(
     {
-      Name = "${local.common_name}" # roboshop-dev-catalogue
+        Name = "${local.common_name}" # roboshop-dev-catalogue
     },
     local.common_tags
   )
@@ -18,16 +18,16 @@ resource "terraform_data" "main" {
   ]
 
   connection {
-    type     = "ssh"
-    user     = "ec2-user"
+    type        = "ssh"
+    user        = "ec2-user"
     password = "DevOps321"
-    host     = aws_instance.main.private_ip
+    host        = aws_instance.main.private_ip
   }
 
- provisioner "file" {
-  source      = "bootstrap.sh"
-  destination = "/tmp/bootstrap.sh"
-}
+  provisioner "file" {
+    source      = "bootstrap.sh"
+    destination = "/tmp/bootstrap.sh"
+  }
 
   provisioner "remote-exec" {
     inline = [
@@ -37,7 +37,6 @@ resource "terraform_data" "main" {
   }
 }
 
-
 resource "aws_ec2_instance_state" "main" {
   instance_id = aws_instance.main.id
   state       = "stopped"
@@ -45,16 +44,15 @@ resource "aws_ec2_instance_state" "main" {
 }
 
 resource "aws_ami_from_instance" "main" {
-  name               = "${local.common_name}-${var.app_version}-${aws_instance.main.id}"
+  name               = "${local.common_name}-${var.app_version}-${aws_instance.main.id}" # roboshop-dev-catalogue-v3-instance-id
   source_instance_id = aws_instance.main.id
   depends_on = [aws_ec2_instance_state.main]
-
-   tags = merge(
-        {
-            Name = "${local.common_name}-${var.app_version}-${aws_instance.main.id}"
-        },
-        local.common_tags
-    )
+  tags = merge(
+    {
+        Name = "${local.common_name}-${var.app_version}-${aws_instance.main.id}"
+    },
+    local.common_tags
+  )
 }
 
 resource "aws_launch_template" "main" {
@@ -100,7 +98,7 @@ resource "aws_launch_template" "main" {
   )
 }
 
- resource "aws_lb_target_group" "main" {
+resource "aws_lb_target_group" "main" {
   name     = "${local.common_name}"
   port     = var.component == "frontend" ? "80" : "8080"
   protocol = "HTTP"
@@ -119,7 +117,6 @@ resource "aws_launch_template" "main" {
   }
 }
 
-
 resource "aws_autoscaling_group" "main" {
   name                      = "${local.common_name}"
   max_size                  = 10
@@ -128,14 +125,16 @@ resource "aws_autoscaling_group" "main" {
   health_check_type         = "ELB"
   desired_capacity          = 2
   force_delete              = false
-  
+
   launch_template {
     id      = aws_launch_template.main.id
     version = "$Latest"
   }
-   vpc_zone_identifier       = [local.private_subnet_id]
 
-   target_group_arns = [aws_lb_target_group.main.arn] # Autoscaling launches into specific target group
+  vpc_zone_identifier       = [local.private_subnet_id]
+
+  target_group_arns = [aws_lb_target_group.main.arn] # Autoscaling launches into specific target group
+
   instance_refresh {
     strategy = "Rolling"
     preferences {
@@ -151,22 +150,23 @@ resource "aws_autoscaling_group" "main" {
       },
       local.common_tags
     )
-    
     content{
       key                 = tag.key
       value               = tag.value
       propagate_at_launch = true
     }
   }
+
   # with in 15min autoscaling should be successful to launch instances
   timeouts {
     delete = "15m"
   }
 }
+
 resource "aws_autoscaling_policy" "main" {
   autoscaling_group_name = aws_autoscaling_group.main.name
   name                   = "${local.common_name}"
-  policy_type       = "TargetTrackingScaling"
+  policy_type            = "TargetTrackingScaling"
   estimated_instance_warmup = 120
   target_tracking_configuration {
     predefined_metric_specification {
@@ -176,8 +176,6 @@ resource "aws_autoscaling_policy" "main" {
     target_value = 75.0
   }
 }
-
-# Forward action
 
 resource "aws_lb_listener_rule" "main" {
   listener_arn = local.alb_listener_arn
@@ -195,7 +193,6 @@ resource "aws_lb_listener_rule" "main" {
   }
 }
 
-
 resource "terraform_data" "main_delete" {
   triggers_replace = [
     aws_instance.main.id
@@ -206,4 +203,4 @@ resource "terraform_data" "main_delete" {
   provisioner "local-exec" {
     command = "aws ec2 terminate-instances --instance-ids ${aws_instance.main.id}"
   }
-} 
+}
